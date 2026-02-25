@@ -1,0 +1,227 @@
+---
+title: "HW 4"
+author: "James S"
+date: "2025-10-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(GGally)
+library(ggfortify)
+library(car)
+library(tidymodels)
+```
+
+Problem 1 - Blood Data
+
+```{r Get Data}
+
+body_data <- read_csv("Body Data.csv", 
+                        show_col_types = FALSE)
+glimpse(body_data)
+
+```
+
+```{r Scatterplaot}
+ggpairs(body_data, columns=c(2,3,4,5,1))
+```
+
+
+There appears to be a significant positive correlation between platelet count and white blood cell count, pulse and white blood cell count, and pulse and platelet count. there is also a significant negative correlation between white blood cell count and HDL.
+
+Task 1:
+
+```{r Model Making}
+body_full_model <- lm(PULSE ~ HDL + LDL + WHITE +
+                 PLATE, data=body_data)
+
+summary(body_full_model)
+
+autoplot(body_full_model)
+```
+
+Task 5:
+We have a small F statistic of 3.353 on 4 and 295 DF, with a relatively large p value of 0.01052. residual standard error tells us that the predicted values based on this model with be on average 11.94 bpm off of the actual pulse rate, which is a pretty significant amount. Our multiple R squared tells us that only 4.349% of the variability of pulse is explained by the model, telling us that it isn't really all that useful in predicting pulse.
+
+Independence - persumably samples being tested were randomly selected and donors were random as well
+
+Normality - Normal Q-Q plot follows the expected angle well
+
+Constant Variance - No clear increasing or decreasing trend in the scale-location graph, no symettrical pattern in the residual vs. fitted graph, constant variance is supported
+
+linearity - the blue line in the residual vs. fitted plot has a slight positive deviation towards the upper end of the data, but not enough to be considered an issue
+
+Task 2:
+
+```{r}
+autoplot(body_full_model, which=c(1,2,3,5,4,6))
+```
+
+observation 70 and 14 both appear to have high leverage, however by looking at the cook's distance model we see that only observation 14 seems to have a potentially concerning high impact on the model, and should probably be removed from the model.
+
+Task 3:
+
+```{r}
+vif(body_full_model)
+```
+
+multicolinearity does not apear to be an issue. While all values have a small value, it is not great enough to warrent worry
+
+task 4:
+
+```{r Reduced Modeling}
+body_red_model <- lm(PULSE ~ WHITE, data=body_data)
+
+summary(body_red_model)
+
+autoplot(body_red_model)
+```
+
+Task 5:
+comparing the reduced model to the full model, the reduced model has a higher F statistic of 11.38 on 1 and 298 DF with a smaller P-value of 0.0008407, However the multiple and adjusted R squared values were both lowered, telling us that this model explains less about the Pulse than the original full model. residual standard error is ever so slightly improved by about 0.02. due to the better F statistic and p-value, as well as the improved residual standard error, I would say that the reduced model is the better model for making predictions.
+
+Task 5:
+
+
+Task 6:
+
+```{r Predict}
+body_to_predict <- data.frame(
+  HDL = c(51),
+  LDL = c(123),
+  WHITE = c(10.4),
+  PLATE = c(337))
+
+predict(body_full_model,
+        newdata = body_to_predict,
+        interval = "prediction")
+
+predict(body_red_model,
+        newdata = body_to_predict,
+        interval = "prediction")
+```
+
+The reduced model has a more narrow prediction, while the full model has a more broad prediction. This would mean that the rediced model makes a better prediction, because given the same confidence interval the reduced model is able to make a more concise prediction.
+
+Overall, the rediced model appears to be the better model for predicting pulse.
+
+Problem 2 - Palmer Penguins
+
+Task 1:
+
+```{r}
+peng_data <- read_csv("Palmer_Penguins.csv", 
+                        show_col_types = FALSE)
+glimpse(peng_data)
+```
+
+
+```{r}
+ggpairs(peng_data, columns=c(1,2,3,4,5,6), aes(color = Sex))
+```
+
+
+Bill Depth and Bill length has a slight negative correlation
+Flipper length and bill length have a modest positive correlation
+flipper length and bill depth have a moderate negative correlation
+
+flipper length has a strong positive correlation to body mass
+bill length has a moderate positive correlation to body mass
+bill depth has a moderate negative correlation to body mass
+
+Task 2:
+```{r}
+peng_full_model <- lm(Body_Mass ~ Species + Island + Bill_Length +
+                 Bill_Depth + Flipper_Length + Sex, data=peng_data)
+
+summary(peng_full_model)
+```
+
+we have a very large f statistic of 284.1 on 8 and 324 DF, with a small p-value of 2.23-16. Our multiple and adjusted R-squared values tell us about 87% of the variability of body mass can be explained by the model, which is a really good amount. Residual standard error tells us that on average a predicted variable will be about 287.9 grams off of the actual mass. Converting that to pounds which is something I am personally more comfortable with, that is about a little over half a pound off, which is a pretty good prediction. Overall, I would say that the model is significant
+
+Task 3:
+
+Holding all other predictors constant, a male penguin will be on average 387.224 grams heavier than a female penguin.
+
+Task 4:
+
+```{r}
+confint(peng_full_model, level=(0.99))
+```
+
+We are 99% confident that a male pengium will be between 262.49 to 511.95 grams heavier than a female penguin with all other predictors held constant.
+
+Task 5:
+
+```{r}
+peng_red_model <- lm(Body_Mass ~ Species + Bill_Length +
+                 Bill_Depth + Flipper_Length + Sex, data=peng_data)
+
+summary(peng_red_model)
+```
+F statistic is much higher at 380.2 on 6 and 326 DF, p-value is relatively unchanged, multiple and adjusted r-squared values are slightly better, explaining about 0.05% more of body mass, and the residual standard error is down a little from 287.5 to 287.3. Looking at all of this, it would appear that island is not a necessary variable to be included when predicting body mass, as the reduced model does a better job at it than the full model.
+
+Task 6:
+
+```{r}
+autoplot(peng_full_model, which=c(1,2,3,5,4,6))
+
+peng_data |>
+  filter(row_number() == 76) |>
+  kable()
+```
+
+One observation, 76, seems to have the largest leverage value at about 0.03. This penguin had an abnormally large bill depth given its bill length.
+
+Problem 3:
+
+```{r}
+acu_data <- read_csv("acupuncture_rotcuff.csv", 
+                        show_col_types = FALSE)
+glimpse(acu_data)
+```
+
+```{r}
+ggpairs(body_data, columns=c(1,2,3))
+```
+
+no clear pattern can be found just looking at the scatterplot
+
+```{r}
+acu_full_model <- lm(Post_Trt_Score ~ Pre_Trt_Score + Trt, data=acu_data)
+
+autoplot(acu_full_model)
+```
+
+Independence - subjects were randomly assigned to each treatment group
+
+Constant Variance - No blooming or fanning effect in the scale location or residual vs fitted plots
+
+normality - observation follow the expected 45 degree angle
+
+linearity - slight negative deviation towards the upper end of the data , but nothing to be overly worried about
+
+There seems to be some issue with the residual vs. leverage plot, indicating that some value may be skewing the data, namely observation 37.
+
+```{r}
+autoplot(acu_full_model, which=c(1,2,3,5,4,6))
+```
+
+looking at it, observations 23, 37, and 43 all seem to have high leverage values all at or above 1.00. These observation should probably be removed as outlires. 23 had a considerable increase in pain level despite going through acupuncutre, while 37 and 43 both had drastic changes in their reported pain levels despite receiving a placebo treatment. 37 had more pain while 43 had less.
+
+```{r}
+vif(body_full_model)
+```
+
+Multicolinearity does not appear to be an issue.
+
+```{r}
+summary(acu_full_model)
+```
+
+With an F-statisic of 18.35 on 2 and 49 DF, and a p-value of 1.124e-06, the initial model could be better. Only about 40.49% of the change in post treatment score is explained by the model, which is not a good amount. the residual standard error tells us that the predicted pain level will be about 14.98 units off. All predictors are significant.
+
+As the model stands, it is not a particuarly good model for depicting the impact of acupuncture on measured pain. By creating a new model excluding the outlire and high leverage points, it would probably be greatly improved, however I'm not too certain how to do that. BUt I can explain that by removing those points the model would most likely be greatly improved, and probably be much more suited to predicting the change in pain level as a result of acupuncture.

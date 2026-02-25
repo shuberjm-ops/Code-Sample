@@ -1,0 +1,166 @@
+---
+title: "HW 6"
+author: "James S"
+date: "2025-12-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(car)
+library(emmeans)
+```
+
+Problem 1 - Football Data
+
+Task 1:
+
+```{r}
+football_data <- read_csv("nfl2008_fga.csv")|>
+  select(GOOD, qtr, homekick, distance)|>
+  mutate(qtr = factor(qtr, levels = 1:5, 
+                      labels = c("1st", "2nd", "3rd", "4th", "Overtime")),
+         GOOD = factor(GOOD, levels = c(0,1), labels = c("Missed", "Made")), 
+         homekick = factor(homekick, levels = c(0,1), labels = c("Away", "Home")))
+```
+
+```{r}
+football_full <- glm(GOOD ~ qtr + homekick + distance, data = football_data, 
+                     family = binomial(link = logit))
+
+football_null <- glm(GOOD ~ 1, data = football_data, family = binomial(link = logit))
+
+anova(football_null, football_full)
+
+1 - (682.65 / 817.72)
+```
+with chi squared value of 135.07 on 6 DF and with a p value of 2.2e-16, we have enough evidence to suggest that some combination of quarter, home team, and distance have some effect on if a field goal is good or not.
+
+and looking at the pseudo R squared value, about 16.52% of the deviance is explained by the current model. Not a great amount.
+
+```{r}
+coef(football_full)
+
+exp(coef(football_full))
+
+1079.0167838 / (1 + 1079.0167838)
+```
+
+The log odds that a field goal is good, in the first quarter, and by the away team, at a distance of 0 yards, is 6.98
+
+The odds that a field goal is good with all the same assumptions is 1079.02
+
+The probability that the field goal is good with once again the same assumptions is 0.999
+
+Task 2:
+
+```{r}
+drop1(football_full, test = "LRT")
+```
+
+looking at the table, distance make a significant improvement on models without it, while quarter and homekick do not on a model including distance.
+
+Task 3:
+
+```{r}
+football_reduced <- glm(GOOD ~ distance, data=football_data, family = binomial(link = logit))
+
+anova(football_reduced, football_full)
+```
+
+Looking at the anova results, we do not have enough evidence to suggest that a model containing quarter and homekick variables is better than one just with distance.
+
+Task 4:
+
+```{r}
+AIC(football_full)
+
+AIC(football_reduced)
+```
+
+The AIC value is smaller for the reduced model, meaning that we have more support for dropping the quarter and kicking team variables.
+
+Task 5:
+
+```{r}
+
+```
+
+Task 6:
+
+```{r}
+football_predict <- data.frame(distance = 53)
+
+predict(football_reduced, football_predict, type = "response")
+```
+
+A kick done from 53 yards away from the field goal posts has a 58.89% chance of being good. That's not a great chance, but it would probably be better than nothing in that scenario
+
+Problem 2 - Mosquito Data
+
+Task 1:
+
+Experimental units = each individual disk
+Factors = UVB and DOM
+Treatments = 4 levels, one for each combination of UVB and DOM
+Control = larve were selected at random and assigned to random disks
+Analysis Type = two factor analysis as there are two factor variables
+
+Task 2:
+
+```{r}
+mosquito_data <- read_csv("berryMosquitoData.csv")|>
+  mutate(DOM = factor(DOM, levels = c(0,1), labels = c("Clear Water", "Dissolved Organic Matter")),
+         UVB = factor(UVB, levels = c(0,1), labels = c("Dark", "UV Light")),
+         Prob = Alive / (Alive+Dead))
+```
+
+```{r}
+
+```
+
+Task 3:
+```{r}
+mosquito_full <- glm(cbind(Alive, Dead) ~ DOM*UVB, data = mosquito_data, 
+                  family = binomial(link=logit))
+
+mosquito_null <- glm(cbind(Alive, Dead) ~ 1, data = mosquito_data, 
+                     family = binomial(link=logit))
+
+anova(mosquito_null, mosquito_full)
+
+1 - (263.59 / 711.45)
+```
+
+With a chi squared value of 447.86 on 3 DF and a p value of 2.2e-16 we have enough evidence to suggest that DOM and UVB and their interaction in some way predicts the probability of survival
+
+Looking at the pseudo R squared value, around 62.95% of the variance of survival probability is explained by the model
+
+Task 4:
+
+```{r}
+mosquito_multiple_comparison <- emmeans(mosquito_full, ~DOM*UVB, regrid="response")
+
+contrast(mosquito_multiple_comparison, "dunnett")
+```
+
+Looking at the results, NO significant change with clear water dark and dissolved organic matter dark.
+There is a significant change between clear water UV light and clear water dark, as well as between dissolved organic matter UV light and clear water dark.
+
+Task 5:
+
+```{r}
+treatments <- data.frame(DOM = c("Clear Water", "Clear Water", "Dissolved Organic Matter", "Dissolved Organic Matter"), 
+                         UVB = c("Dark", "UV Light", "Dark", "UV Light"))
+
+treatments |>
+  mutate('Predicted Probability' = predict(mosquito_full, treatments, type = "response"))|>
+  kable()
+```
+
+There it is
+
+Task 6:
+Looking at the dunnett comparison and the probability of survival and their differences, UV light seems to consistently reduce the probability of survival. Similarly, the probability of survival in clear water was a little less likely than in the dissolved organic matter. THe best condition for the mosquito larve to grow is in dissolved organic matter without the pressence of any UV light.

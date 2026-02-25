@@ -1,0 +1,170 @@
+---
+title: "HW 5"
+author: "James S"
+date: "2025-11-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(ggfortify)
+library(GGally)
+library(car)
+library(StepReg)
+```
+
+Probelm 1 - Body Data
+
+```{r}
+
+body_data <- read_csv("Body Data Full.csv",
+                      show_col_types = FALSE)
+glimpse(body_data)
+
+```
+
+```{r}
+full_body_model <- lm(HDL ~ AGE + SEX + PULSE + SYSTOLIC + DIASTOLIC + LDL + WHITE + RED + 
+                        PLATE + WEIGHT + HEIGHT + WAIST + ARM_CIRC + BMI, data=body_data)
+autoplot(full_body_model, which=c(1,2,3,5,4,6))
+```
+
+Normality - mostly supported, but some uppward trend towards the upper end due to some high leverage points
+
+Constant Variance - SUpported, no clear fanning patter in the residual vs. fitted plot
+
+Linearity - supported with some potential slight issues, slight uppward trend in the data, once again probably due to some high leverage points.
+
+Independence - it is reasonable to assume that each subject was only recorded once, and subjects were selected at random.
+
+```{r}
+fullish_body_model <- lm(HDL ~ AGE + SEX + PULSE + SYSTOLIC + DIASTOLIC + LDL + WHITE + RED + 
+                        PLATE + WEIGHT + HEIGHT + WAIST + ARM_CIRC + BMI, 
+                        data=filter(body_data, row_number() != 121, row_number() != 70,
+                                    row_number() != 205))
+autoplot(fullish_body_model)
+```
+
+Everything looks better after removing those outlires. Still some issues with normality, but over all much better.
+
+```{r}
+fit_multiple_back <- stepwise(HDL ~ AGE + SEX + PULSE + SYSTOLIC + DIASTOLIC + LDL + WHITE + RED + 
+                        PLATE + WEIGHT + HEIGHT + WAIST + ARM_CIRC + BMI, 
+          data=filter(body_data, row_number() != 121, row_number() != 70,
+                                    row_number() != 205),
+         strategy = c("backward"),
+         metric = c("adjRsq", "BIC", "AIC"))
+
+fit_multiple_back
+```
+
+backwards selection for both the AIC and BIC values call the same model, using Age, sex, diastolic, red, weight, and waist as their predictor variables.
+
+backwards selection for R^2 uses age, sex, diastolic, red, weight, height, waist, and arm_circ
+
+```{r}
+fit_multiple_forward <- stepwise(HDL ~ AGE + SEX + PULSE + SYSTOLIC + DIASTOLIC + LDL + WHITE + RED + 
+                        PLATE + WEIGHT + HEIGHT + WAIST + ARM_CIRC + BMI, 
+          data=filter(body_data, row_number() != 121, row_number() != 70,
+                                    row_number() != 205),
+         strategy = c("forward"),
+         metric = c("adjRsq", "BIC", "AIC"))
+
+fit_multiple_forward
+```
+
+All three forwards models call for the same predictors as the AIC and BIC models for the backwards selection, with the R^2 model for forwards adding LDL.
+
+```{r}
+
+fit_multiple_bi <- stepwise(HDL ~ AGE + SEX + PULSE + SYSTOLIC + DIASTOLIC + LDL + WHITE + RED + 
+                        PLATE + WEIGHT + HEIGHT + WAIST + ARM_CIRC + BMI, 
+          data=filter(body_data, row_number() != 121, row_number() != 70,
+                                    row_number() != 205),
+         strategy = c("bidirection"),
+         metric = c("adjRsq", "BIC", "AIC"))
+
+fit_multiple_bi
+
+```
+
+This test calls the exact same models as the forwards test.
+
+Looking at all the called models, to me it looks like a model using sex, waist, age, weight, red, and diastolic would be out best fit.
+
+```{r}
+body_chosen <- lm(HDL ~ AGE + SEX + DIASTOLIC + RED + 
+                        WEIGHT + WAIST, 
+                        data=filter(body_data, row_number() != 121, row_number() != 70,
+                                    row_number() != 205))
+summary(body_chosen)
+```
+
+The average man would have an HDL between 84.63498 and 109.57498
+
+The average woman would have and HDL between 75.38818 and 100.32818
+
+Problem 2 - Football
+
+```{r}
+
+football_data <- read_csv("nfl2008_fga.csv", 
+                        show_col_types = FALSE)
+glimpse(football_data)
+
+```
+
+Part 1:
+
+```{r}
+football_data |>
+  summarize(Is_Good = sum(GOOD),
+            No_Good = sum(GOOD==0),
+            N = n(),
+            Prop_Good = sum(GOOD)/n() )
+```
+
+Odds - 900 / 139 = 0.866, meaning each field goal kick has about an 86.6% chance of being good.
+
+Proportion  - 900 of 1039 Field goals are successful.
+
+This means that it is incredibly likely for a field goal to be successfull, much more likely than to miss.
+
+Task 2:
+
+```{r}
+
+xtabs(~ GOOD + homekick, data=football_data)
+
+```
+61 / (61 + 464) = 0.116 = 11.6% chance to miss a field goal for away teams
+
+78 / (78 + 436) = 0.152 = 15.2% chance to miss a field goal for home teams
+
+comparing the two, it seems that field goals are about 3.6% more likely to miss when the home team is kicking.
+
+Task 3:
+
+```{r}
+
+xtabs(~ GOOD + qtr, data=football_data)
+
+```
+
+1st quarter: 22 / (22 + 192) = 10.3% chance to miss
+2nd quarter: 59 / (59 + 316) = 15.7% chance to miss
+3rd quarter: 28 / (154 + 28) = 15.4% chance to miss
+4th quarter: 29 / (29 + 226) = 11.4% chance to miss
+overtime: 7.7% chance to miss
+
+Looking at the odds, it appears that most field goals are missed in the 2nd quarter, but most field goals are taken at that time. Third quarter has the highest amount of field goals kicked that were missed compared to total field goals in that inning.
+
+Task 4:
+
+```{r}
+ggplot(football_data, aes(x=distance, y=GOOD)) + 
+  stat_summary(fun = mean, geom="line")
+```
+Looking at the graph, it would seem the chances of being a successful field goal is pretty good up until qround 45 ft, where it dramatically dips. at 55 ft the success rate spikes back up, but by 57-58 ft it drops all the way down to near 0% chance of being good.

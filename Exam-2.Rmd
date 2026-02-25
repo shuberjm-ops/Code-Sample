@@ -1,0 +1,158 @@
+---
+title: "Exam 2"
+author: "James S"
+date: "2025-11-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(GGally)
+library(ggfortify)
+library(car)
+library(tidymodels)
+```
+
+Problem 1 - Sound Absorption
+
+Task 1
+
+```{r}
+fabric_data <- read_csv("fabricsoundabsorb.csv", 
+                        show_col_types = FALSE)
+fabric_data <- fabric_data[ , -c(8, 9, 10)]
+
+glimpse(fabric_data)
+```
+
+data is imported, and the unneeded response variables are removed.
+
+```{r}
+ggpairs(fabric_data, columns=c(2,3,4,5,6,7,8))
+```
+
+looking at the data, both perferation and air permiability are the only two significant predictors of accoustics 3 cm away. Both have a strong, negative relationship with it. Some other variables appear to be related to each other as well. weight and thickness, weight and pore diameter, and air permiability and air perferation all have positive linear relationships of varying intensity.
+
+```{r}
+full_fabric_model <- lm(acoustic3 ~ thickness + diameter + perforation + weight + stiffness + airPerm, data=fabric_data)
+
+autoplot(full_fabric_model, which=c(1,2,3,5,4,6))
+
+vif(full_fabric_model)
+```
+
+Normality - supported. observations follow the expected 45 degree angle in the normal Q-Q plot, with some slight variation at the upper end of the data due to potentially high leverage points.
+
+Linearity - Supported. A slight increasing trend in the scale-location plot, but not anything to be overly worried about.
+
+Independence - Supported. Each fabric being tested was different, with different makes, and not one piece of fabric was tested more than once.
+
+Constant Variance - Supported. No clear fanning or other pattern in the residual vs. fitted or scale-location plots.
+
+Leverage - No issues. The residuals vs. leverage graph is consistent all the way through. Some observations like 14 and 17 have moderate leverage but not enough to cause any issues.
+
+Task 2:
+
+```{r}
+red_fabric_model <- lm(acoustic3 ~ perforation + airPerm, data=fabric_data)
+
+anova(full_fabric_model, red_fabric_model)
+```
+
+compairing the two models, we see a F-stat of 1.2282 on -4 and 21 and a p-value of 0.3358, we do not have enough evidence to suggest that thickness, diameter, weight, or stiffness are needed to predict the acoustic value at 3 cm.
+
+Task 3:
+
+Kind of did this earlier on accident. It looks like there are some decently high leverage points, but the residuals vs. leverage graph looks prefectly fine and the leverage values of the points are at highest 0.5, which is not a worrying amount. Our decision in task 2 remains unchanged.
+
+Task 4:
+
+```{r}
+summary(red_fabric_model)
+
+summary(full_fabric_model)
+```
+
+Looking at the data, the only significant predictor of acoustic value is the air permiability, not the perforation. The intercept in significant.
+
+With an F stat of 33.71 on 2 and 21 DF, and a p-value of 2.782e-07, the model is useful in predicting the acoustic value measured. Compare that to the full model's f stat of 12.54 on 6 and 17 DF with a p-value of 1.984e-05, the reduced model appears the predict acoustic value better than the full model.
+
+```{r}
+vif(red_fabric_model)
+```
+
+We have no issues with multicollinearity with the reduced model. Both variables have a vif value below 5.
+
+Ultimately, the researcher's hypothesis is not supported. They were half correct. While air permiability mainly explains the acoustic variable, the perforation ration is not a significant predictor.
+
+Problem 2 - Height Measuring
+
+```{r}
+height_data <- read_csv("kids_heights.csv", 
+                        show_col_types = FALSE)
+
+glimpse(height_data)
+```
+
+```{r}
+ggpairs(height_data, columns=c(3,4,2), aes(color = Sex))
+```
+
+Looking at the graph, there is a strong positive relationship between mother's height and the height of female children. Also, the mother's height seems to have a stronger correlation between child height that father's height.
+
+```{r}
+height_model <- lm(Height ~ Mothers_Height + Fathers_Height + Sex, data=height_data)
+
+autoplot(height_model, which=c(1,2,3,5,4,6))
+```
+
+Normality - Not supported, some observations seems to be deviating the data from the expected angle.
+
+Independence - Supported. It is reasonable to assume each kid was randomly selected and no kid was recorded twice.
+
+Linearity - Supported, but could be better. Some observations seem to be disrupting the data, causing the scale-location graph to have some bending in it
+
+Constant Variance - Slight fanning effect at the upper end of the data, once again due to some high leverage points.
+
+points 1, 20, and 34 seem to be high leverage, and causing issues in multiple assumptions.
+
+```{r}
+height_model_adj <- lm(Height ~ Mothers_Height + Fathers_Height + Sex, 
+                       data=filter(height_data, row_number() != 1, row_number() != 20,
+                                   row_number() != 34))
+
+autoplot(height_model_adj, which=c(1,2,3,5,4,6))
+```
+
+Normality, linearity, and constant variance are all greatly improved by the removal of those points.
+
+```{r}
+vif(height_model_adj)
+```
+
+There is no issue with multicollinearity.
+
+```{r}
+summary(height_model_adj)
+```
+
+looking at the data, all three predictors are significant. The model is also significant, with a f stat of 43.05 on 3 and 33 DF, and a P-value of 1.645e-11. Most of the variance of height is explained by the model, about 77.8%. And a predicted height would only be 1.757 inches away from the actual height on average. 
+
+Holding Mother's heigh and father's height constant, a male kid will be on average 4.31972 inches taller than a female.
+
+```{r}
+height_model_adj_m <- lm(Height ~ Fathers_Height + Sex, 
+                       data=filter(height_data, row_number() != 1, row_number() != 20,
+                                   row_number() != 34))
+
+height_model_adj_f <- lm(Height ~ Mothers_Height +  Sex, 
+                       data=filter(height_data, row_number() != 1, row_number() != 20,
+                                   row_number() != 34))
+summary(height_model_adj_m)
+summary(height_model_adj_f)
+
+```
+
+Looking at all of the tests, there is not enough evidence to suggest that girls get their height from their moms and guys get their height from their dads. We see that guys are on average taller, but there is no way to tell if that is caused by one parent or the other.
